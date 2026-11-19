@@ -15,14 +15,15 @@ You will:
 > [!NOTE]
 > **Internet is needed during setup only.** Steps 1 to 4 download software. After setup, Frigate and your cameras run entirely on your home network. Nothing has to reach the internet for recording, detection, or viewing at home.
 
-> [!IMPORTANT]
-> **TODO for Ameridroid:** add a short "What's in the box" section here (board model, power supply, storage drive, PoE switch if included, default Linux login for the box, and which cameras ship with which bundle).
+> [!NOTE]
+> **What's in the box depends on the bundle.** Board, power supply, storage, PoE switch, and which cameras are included are not the same for every offering. Use the packing list or product page that came with your order.
 
 ---
 
 ## Contents
 
 - [Before you start](#before-you-start)
+- [Change the default password](#change-the-default-password)
 - [Step 1: Get the box online and up to date](#step-1-get-the-box-online-and-up-to-date)
 - [Step 2: Install Docker](#step-2-install-docker)
 - [Step 3: Download the Ameridroid Frigate files](#step-3-download-the-ameridroid-frigate-files)
@@ -33,7 +34,6 @@ You will:
 - [Option: add a whole bundle at once (batch mode)](#option-add-a-whole-bundle-at-once-batch-mode)
 - [Installer reference](#installer-reference)
 - [Troubleshooting](#troubleshooting)
-- [Updating](#updating)
 - [Security](#security)
 
 ---
@@ -70,8 +70,33 @@ The bundle ships with the latest Ubuntu release, in one of two editions.
 
 The commands in this guide are the same on both editions.
 
+The Ubuntu account on the bundle is:
+
+- **Username:** `frigate`
+- **Password:** `Temp_123!`
+
+**Ubuntu Server** has no desktop. From another computer on your home network:
+
+```bash
+ssh frigate@<BOX_IP>
+```
+
+Replace `<BOX_IP>` with the box's address (your router's device list, or the first address from `hostname -I` in Step 1 if you are already at a keyboard and monitor). You can also attach a keyboard and monitor and sign in at the text login with the same username and password.
+
+**Ubuntu Desktop:** sign in at the graphical login with that username and password, then open a Terminal.
+
+---
+
+## Change the default password
+
 > [!IMPORTANT]
-> **TODO for Ameridroid:** state the default username and password, and how to SSH in.
+> **Do this immediately after the first login**, before the other steps. `Temp_123!` is printed in this guide, so it is not a secret. Anyone who can reach the box could sign in with it until you change it.
+
+```bash
+passwd
+```
+
+Type `Temp_123!` when asked for the current password, then type a new password twice. Nothing shows on screen while you type. Remember the new password; this guide cannot recover it.
 
 ---
 
@@ -216,10 +241,8 @@ You now have:
 > [!WARNING]
 > Keep the file named exactly **`config.yml`** inside `~/frigate/config/`. If Frigate can't find `config.yml`, it creates a *different* file named `config.yaml`, and the camera installer would then be editing the wrong file.
 
-> [!IMPORTANT]
-> **TODO for Ameridroid:** before shipping, fill in the board-specific parts of the two starter files:
-> - `docker-compose.yml`: the image variant for this board (for example `0.17.2-rk` for Rockchip), `devices:` passthrough for the detector/GPU, whether `privileged: true` is needed, `shm_size` for the bundle's camera count, and the recording drive path if the bundle has a separate drive.
-> - `config.yml`: the `detectors:` block (Coral, Hailo, OpenVINO, Rockchip NPU, etc.) and `ffmpeg: hwaccel_args:` for this board. Without a detector block, Frigate falls back to its slow CPU detector.
+> [!NOTE]
+> **Hardware varies by bundle.** Detector, video-decoding acceleration, device passthrough, shared memory, and where recordings are stored are already set on a shipped bundle, and they differ between offerings. The starter files here leave those lines commented, with examples, for anyone setting them from the [Frigate docs](https://docs.frigate.video/). Pick the Frigate image in Step 4. `shm_size` stays `512mb` unless more cameras need more shared memory ([Calculating required shm-size](https://docs.frigate.video/frigate/installation/#calculating-required-shm-size)).
 
 ---
 
@@ -230,7 +253,7 @@ cd ~/frigate
 docker compose up -d
 ```
 
-The first start downloads Frigate (around a gigabyte or more, depending on your board), so give it a few minutes.
+The first start downloads Frigate (around a gigabyte or more), so give it a few minutes.
 
 Check that it's running:
 
@@ -245,7 +268,18 @@ docker logs -f frigate
 ```
 
 > [!NOTE]
-> This bundle uses **Frigate 0.17.x** on purpose (`ghcr.io/blakeblackshear/frigate:0.17.2` in `docker-compose.yml`). The camera installer only works with 0.17.x. Don't change the image to `stable`, because `stable` now points to a newer Frigate version.
+> Frigate stays on **0.17.x**. The camera installer rejects other versions. Do not change the image to `stable` or to 0.18 or later; `stable` now points at a newer Frigate.
+>
+> Which 0.17.2 tag to use depends on the CPU. On the box, run:
+>
+> ```bash
+> uname -m
+> ```
+>
+> - `x86_64` (Intel/AMD): `ghcr.io/blakeblackshear/frigate:0.17.2`
+> - `aarch64` (ARM): `ghcr.io/blakeblackshear/frigate:0.17.2-standard-arm64`
+>
+> `docker-compose.yml` has both lines. Leave the one that matches `uname -m` active and comment out the other. A shipped bundle should already have the matching line set.
 
 Frigate starts with **no cameras**. That's expected. You'll add them in Step 7.
 
@@ -318,9 +352,6 @@ Do this for each camera **before** running the camera installer. You need each c
 3. In the eWeLink app, open the camera, then **Device Settings > More Settings > RTSP** (called "ONVIF/RTSP" on some Sonoff models). Enter your eWeLink password if asked, and turn it on.
 4. That screen shows an **RTSP username and password**. These are what the camera installer needs, **not** your eWeLink account login. You can change them; Sonoff allows only letters and numbers in the password.
 
-> [!WARNING]
-> **Unverified, TODO for Ameridroid:** the Sonoff menu names above come from Sonoff's help center and third-party guides, not from testing a CAM-S2 here. Please confirm them on a real camera, and confirm whether ONVIF discovery must be enabled separately on the CAM-S2.
-
 ### Give everything a fixed IP address
 
 Frigate connects to each camera by its IP address. If your router hands a camera a new address later, Frigate loses it. In your router's settings, find **DHCP reservation** (sometimes called "static lease", "address reservation", or "fixed IP") and reserve an address for:
@@ -373,7 +404,7 @@ Frigate must be running (Step 4) when you do this.
 | `Detection frames per second [5]` | Press **Enter**. |
 | `Objects to track` | Press **Enter** for `person,car`, or type your own list, such as `person,car,dog`. |
 | `Include audio in recordings?` | Only asked if the camera sends audio. Your choice; default is no. |
-| `Add an H.264 transcoded live-view stream...?` | Only asked for H.265 cameras (often the RLC-1224A and Duo 3). Press **Enter** (yes) so live view works in every browser. |
+| `Add an H.264 transcoded live-view stream...?` | Only asked when the main stream is H.265 (often the RLC-1224A and Duo 3). **Enter** (yes) adds an H.264 copy so more browsers can play it. On a low-power box, type **n** so that 12MP/16MP stream is not re-encoded. See [Live view encoder](#live-view-encoder). |
 | `Validate and save this camera?` | Check the summary, then type **y**. |
 | `Restart Frigate now?` | Type **y** to start using the camera now. All cameras disconnect briefly during the restart. |
 
@@ -498,7 +529,7 @@ Run the installer again for each camera. After the restart, open `https://<BOX_I
 - **It only adds cameras.** It won't change or overwrite a camera that already exists, and it refuses a name already in use. To change or remove a camera later, see [Changing or removing a camera](#changing-or-removing-a-camera).
 - **Every save makes a backup** next to the settings file, named like `config.yml.bak_20261119_140512_123456`.
 - **Sonoff S2:** the installer checks for the camera's smaller second stream (`/av_stream/ch1`) and uses it for detection if it works. If not, it uses the one main stream for everything, which works but uses more processing power.
-- **Reolink RLC-1224A and Duo 3:** the installer tries the H.265 main stream first, then H.264. **RLC-811A:** H.264 first, then H.265. Recording always uses the camera's own stream; the H.264 live-view copy is only made while someone is watching.
+- **Reolink RLC-1224A and Duo 3:** the installer tries the H.265 main stream first, then H.264. **RLC-811A:** H.264 first, then H.265. Recording always uses the camera's own stream. An H.264 live-view copy, if you added one, is encoded only while someone is watching that copy.
 
 ---
 
@@ -556,7 +587,7 @@ cameras:
 | --- | --- | --- |
 | `container` | top | Frigate container name (default `frigate`; `--container` overrides it) |
 | `restart` | top | `true` restarts Frigate once after saving (also `--restart`) |
-| `live_transcode_hardware` | top | Encoder for the H.264 live-view copy: `auto` (default), `none` (software), or an engine name such as `vaapi`, `v4l2m2m`, `cuda`. `--live-transcode-hw` overrides it. |
+| `live_transcode_hardware` | top | Encoder for the H.264 live-view copy: `auto` (default; hardware if go2rtc finds it, otherwise software), `none` (software), or an engine name such as `vaapi`, `v4l2m2m`, `cuda`. `--live-transcode-hw` overrides it. |
 | `defaults` | top | Settings applied to every camera unless that camera sets its own |
 | `name` | camera | Required. Lowercase letters, numbers, underscores; starts with a letter. Not allowed in `defaults`. |
 | `model` | camera | Required. `sonoff-s2`, `rlc-1224a`, `duo-3-poe`, `rlc-811a` (or menu number 1 to 4, or the model name) |
@@ -573,7 +604,7 @@ cameras:
 | `fps` | either | Detection frames per second, 1 to 30 (default 5) |
 | `objects` | either | List of things to detect (default `[person, car]`) |
 | `audio` | either | `true` to record audio, if the camera has it (default `false`) |
-| `live_transcode` | either | `true` (default) adds the H.264 live-view copy for H.265 cameras |
+| `live_transcode` | either | `true` (default) adds the H.264 live-view copy when the main stream is H.265. `false` skips it. The installer also forces this off when the probed main stream is not H.265. |
 | `main_path`, `sub_path` | camera | Override the RTSP path (advanced; the model's backup path is still tried) |
 
 ### 2. Set the password, then run
@@ -626,7 +657,7 @@ python3 add_camera_v2.py [options]
 | `--batch MANIFEST` | Add all cameras listed in a manifest file. |
 | `--yes` | Batch only: don't ask before saving. |
 | `--restart` | Batch only: restart Frigate once after saving. |
-| `--live-transcode-hw ENGINE` | Encoder for the H.264 live-view copy of H.265 cameras: `auto` (default), `none` (software), or an engine name (`vaapi`, `v4l2m2m`, `cuda`, ...). |
+| `--live-transcode-hw ENGINE` | Encoder for the H.264 live-view copy of an H.265 main stream: `auto` (default), `none` (software), or an engine name (`vaapi`, `v4l2m2m`, `cuda`, ...). |
 
 Examples:
 
@@ -638,8 +669,13 @@ python3 ~/frigate-installer/add_camera_v2.py --discover
 python3 ~/frigate-installer/add_camera_v2.py --discover --discover-timeout 10 --discover-interface 192.168.1.20
 ```
 
-> [!IMPORTANT]
-> **TODO for Ameridroid:** state which `--live-transcode-hw` value (if any) to use on this bundle's board. `auto` lets go2rtc choose and falls back to software. Software encoding of a 12 MP or 16 MP stream may be heavy on small boards.
+### Live view encoder
+
+Leave this at **`auto`**. That is the installer's default (`--live-transcode-hw auto`, and `live_transcode_hardware: auto` in a manifest). For an H.265 main stream it tells go2rtc to use a hardware encoder when one works and otherwise software (`ffmpeg:<name>#video=h264#hardware`, plus `#audio=opus` when that stream has audio). `none` forces software (no `#hardware`). A name such as `vaapi`, `v4l2m2m`, or `cuda` forces that engine.
+
+The question is asked only when the probed main stream is H.265. Answering **yes** (the default) adds go2rtc stream `<name>_h264` and a live-view menu. The first entry, which Frigate plays by default, is **Main H.264 (transcoded)**. Then **Sub stream** (`<name>_sub`) when a sub stream exists, then **Main native H.265**. The encoder runs only while someone is watching the transcoded entry.
+
+On a low-power box, re-encoding a 12MP or 16MP Reolink main stream (RLC-1224A or Duo 3 PoE) is often too heavy when `auto` falls back to software. Skip it: type **n** at the question, or set `live_transcode: false` in the manifest. Recording still uses the native main stream, and detection still uses the smaller sub stream. The installer then does **not** create `<name>_h264` and does **not** add the live-view menu, so the page plays the go2rtc stream named after the camera (the native main stream). A browser that cannot play H.265 may show no picture. The sub stream is still in go2rtc as `<name>_sub` and is what detection uses; the installer only lists **Sub stream** in the on-screen menu when the H.264 copy is also enabled. If you did enable that copy, choose **Sub stream** in the player instead of **Main H.264 (transcoded)** so that viewer does not start the main-stream encoder.
 
 ### Requirements the installer checks
 
@@ -750,7 +786,7 @@ Something else (for example Frigate's own settings editor) saved the file while 
 ### The camera was added but live view is black or won't play
 
 - Give Frigate a minute after a restart.
-- H.265 cameras (often the RLC-1224A and Duo 3): answer **yes** to the H.264 live-view question so every browser can play live video. In the camera's live view, the stream menu lists "Main H.264 (transcoded)", "Sub stream" and "Main native H.265".
+- H.265 cameras (often the RLC-1224A and Duo 3): if you answered **yes** to the H.264 live-view question, the stream menu lists "Main H.264 (transcoded)", "Sub stream", and "Main native H.265". "Main H.264 (transcoded)" is the one most browsers can play. If that picture stutters on a low-power box, choose **Sub stream** instead, or add the camera again and answer **no** so the main stream is not re-encoded ([Live view encoder](#live-view-encoder)). Answering **no** leaves no stream menu; the page then plays the native main stream, which many browsers cannot decode.
 - Recordings from H.265 cameras are saved in H.265. Some browsers can't play H.265; if a recording won't play, try a different browser.
 - Check **System** in Frigate's web page, and `docker logs --tail 50 frigate`, for errors.
 
@@ -795,52 +831,6 @@ docker logs frigate 2>&1 | grep -A1 "Reset admin password"
 
 Log in, set a new password under **Settings > Users**, then remove those two lines from `config.yml` and restart again.
 
-### Still stuck?
-
-> **TODO for Ameridroid:** add support contact details (email, ticket link, forum) here.
-
----
-
-## Updating
-
-### Camera installer
-
-```bash
-cd ~/frigate-installer && git pull
-```
-
-### Frigate (within 0.17.x)
-
-Only move to a version Ameridroid has approved. To update, edit the `image:` line in `~/frigate/docker-compose.yml` to the new 0.17 tag, then:
-
-```bash
-cd ~/frigate
-docker compose pull
-docker compose up -d
-```
-
-> [!WARNING]
-> **Don't upgrade to Frigate 0.18 or later** (or the `stable` tag) until Ameridroid releases an installer that supports it. The installer refuses other versions, and Frigate's settings change between versions.
-
-> [!IMPORTANT]
-> **TODO for Ameridroid:** decide how customers learn about approved Frigate updates and which tag to use.
-
-### Docker and Linux
-
-Docker comes from Docker's repository, so normal system updates keep it current:
-
-```bash
-sudo apt-get update && sudo apt-get -y upgrade
-```
-
-### Before any update
-
-Make a copy of your settings:
-
-```bash
-cp ~/frigate/config/config.yml ~/frigate/config/config.yml.before-update
-```
-
 ---
 
 ## Security
@@ -856,7 +846,7 @@ cp ~/frigate/config/config.yml ~/frigate/config/config.yml.before-update
 - **Port 5000 stays off.** It is Frigate's unauthenticated access port and is commented out in `docker-compose.yml` on purpose.
 - **Port 8554 (RTSP restream) has no password by default.** Anyone on your home network can watch camera streams through it. If you don't use other apps that read these streams, you can remove the `"8554:8554"` line from `docker-compose.yml` and run `docker compose up -d`. Frigate itself doesn't need it.
 - **Docker bypasses the `ufw` firewall** for published ports, so Frigate's ports are reachable on your home network even if `ufw` is on. Another reason never to forward them from your router.
-- **Change default passwords** on every camera and on Frigate's `admin` user.
+- **Change the default Ubuntu password** (`frigate` / `Temp_123!`) at first login with `passwd`. It is published in this guide. Also change the password on every camera and on Frigate's `admin` user.
 - Being in the `docker` group is equivalent to admin access on the box. Only add trusted users to it.
 - Manifests with plain-text passwords should be `chmod 600`, or use `password_env` instead.
 - Keep camera firmware up to date.

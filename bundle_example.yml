@@ -11,8 +11,10 @@
 
 container: frigate            # optional; --container overrides
 restart: false                # restart once after saving (also --restart)
-live_transcode_hardware: auto # go2rtc encoder for H.265->H.264 live view:
-                              # auto | none | vaapi | v4l2m2m | cuda | ...
+live_transcode_hardware: auto # H.265->H.264 live-view encoder.
+                              # auto (default): go2rtc uses hardware if it
+                              # finds any, otherwise software.
+                              # also: none | vaapi | v4l2m2m | cuda | ...
 
 # Applied to every camera unless the camera overrides the key.
 defaults:
@@ -25,7 +27,10 @@ defaults:
   fps: 5
   objects: [person, car]
   audio: false                # record audio (AAC) if the camera has a track
-  live_transcode: true        # only applies when the main stream is H.265
+  live_transcode: true        # H.264 live copy when the main stream is H.265.
+                              # false skips it (lower CPU on a 12MP/16MP
+                              # Reolink; the sub stream stays for detection).
+                              # Ignored when the probed main stream is not H.265.
 
 cameras:
   - name: driveway
