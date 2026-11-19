@@ -1,0 +1,25 @@
+# Python caches and virtualenvs
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+*.egg-info/
+.eggs/
+
+# Installer backups (config.yml.bak_<timestamp>) and editor/update copies
+*.bak
+*.bak_*
+*.before-update
+
+# Scratch files the installer writes next to a config during replacement
+*.tmp
+
+# Local batch manifests can hold camera passwords.
+# bundle_example.yml is the committed placeholder example and must stay tracked.
+manifest*.yml
+!bundle_example.yml

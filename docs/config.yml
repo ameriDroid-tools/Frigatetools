@@ -1,0 +1,32 @@
+# Frigate 0.17.x starter configuration for Ameridroid Frigate bundles.
+#
+# This file intentionally contains NO cameras. Frigate 0.17 starts fine
+# with an empty camera list; add cameras afterwards with the Ameridroid
+# camera installer (add_camera_v2.py), which edits this file for you.
+#
+# Keep this file named exactly "config.yml" inside the folder that is
+# mounted to /config in docker-compose.yml.
+
+mqtt:
+  enabled: false # No MQTT broker is needed. Turn on later for Home Assistant.
+
+# TODO for Ameridroid: object detector for this bundle's hardware.
+# With no "detectors" section, Frigate uses its CPU detector, which works
+# but is slow and CPU-hungry. Replace this comment with the detector block
+# for the board in this bundle (Coral, Hailo, OpenVINO, Rockchip NPU, ...).
+# See https://docs.frigate.video/configuration/object_detectors
+#
+# detectors:
+#   <DETECTOR_NAME>:
+#     type: <DETECTOR_TYPE>
+
+# TODO for Ameridroid: video decoding hardware acceleration for this board.
+# See https://docs.frigate.video/configuration/hardware_acceleration_video
+#
+# ffmpeg:
+#   hwaccel_args: <HWACCEL_PRESET>
+
+# Leave the next line as-is. The camera installer adds cameras here.
+cameras: {}
+
+version: 0.17-0

@@ -1,0 +1,63 @@
+# Docker Compose file for an Ameridroid Frigate bundle (Frigate 0.17.x).
+# Based on the official example at https://docs.frigate.video/frigate/installation
+#
+# Put this file in ~/frigate/ next to the "config" and "storage" folders:
+#
+#   ~/frigate/
+#   ├── docker-compose.yml   <- this file
+#   ├── config/
+#   │   └── config.yml       <- starter config from this repo
+#   └── storage/             <- recordings, snapshots, exports
+#
+# Start Frigate from ~/frigate with:   docker compose up -d
+
+services:
+  frigate:
+    container_name: frigate # The camera installer looks for this name by default.
+    restart: unless-stopped
+    stop_grace_period: 30s # Give Frigate time to shut down cleanly.
+
+    # Pinned to Frigate 0.17.x on purpose. The camera installer only supports
+    # 0.17.x, and the "stable" tag now points at a newer release (0.18+).
+    # TODO for Ameridroid: pick the image variant for this bundle's board:
+    #   0.17.2                 amd64, and RPi-optimized arm64 (includes Hailo support)
+    #   0.17.2-standard-arm64  generic arm64
+    #   0.17.2-rk              Rockchip SoC boards (community supported)
+    #   0.17.2-tensorrt        amd64 with an Nvidia GPU
+    #   0.17.2-rocm            AMD GPUs
+    image: ghcr.io/blakeblackshear/frigate:0.17.2
+
+    # Shared memory for decoded frames. 512mb is the official example value.
+    # TODO for Ameridroid: size this for the bundle's camera count and detect
+    # resolutions (see "Calculating required shm-size" in the Frigate docs).
+    shm_size: "512mb"
+
+    # TODO for Ameridroid: pass through the detector / video hardware for this
+    # board, and decide whether "privileged: true" is needed. Examples from
+    # the Frigate docs (use only the lines that match the hardware):
+    # privileged: true
+    # devices:
+    #   - /dev/bus/usb:/dev/bus/usb             # USB Coral
+    #   - /dev/apex_0:/dev/apex_0               # PCIe Coral
+    #   - /dev/dri/renderD128:/dev/dri/renderD128 # Intel / AMD GPU (VAAPI)
+    #   - /dev/hailo0:/dev/hailo0               # Hailo-8 / Hailo-8L
+
+    volumes:
+      - /etc/localtime:/etc/localtime:ro # Use the box's time zone.
+      # The config FOLDER is mounted (not just config.yml). The camera
+      # installer requires this, so do not change it to a single-file mount.
+      - ./config:/config
+      # TODO for Ameridroid: if the bundle has a separate recording drive,
+      # point this at its mount point instead (for example /mnt/frigate-storage).
+      - ./storage:/media/frigate
+      - type: tmpfs # 1 GB in-memory cache for recording segments
+        target: /tmp/cache
+        tmpfs:
+          size: 1000000000
+
+    ports:
+      - "8971:8971" # Web interface (login required, HTTPS)
+      # - "5000:5000" # Internal UNAUTHENTICATED access. Leave this off.
+      - "8554:8554" # RTSP restream feeds
+      - "8555:8555/tcp" # WebRTC over TCP
+      - "8555:8555/udp" # WebRTC over UDP

@@ -1,0 +1,64 @@
+# Example bundle manifest for add_camera_v2.py --batch
+# ALL VALUES ARE PLACEHOLDERS. 192.0.2.0/24 is a reserved documentation
+# range (RFC 5737) and will never match a real camera. Replace before use.
+#
+# Usage:
+#   export BUNDLE_CAM_PASSWORD='...'      # keeps the password out of this file
+#   python3 add_camera_v2.py --batch bundle_example.yml --config /opt/frigate/config/config.yml
+#   python3 add_camera_v2.py --batch bundle_example.yml --yes --restart   # unattended
+#
+# If you put plaintext passwords in a manifest, chmod 600 it.
+
+container: frigate            # optional; --container overrides
+restart: false                # restart once after saving (also --restart)
+live_transcode_hardware: auto # go2rtc encoder for H.265->H.264 live view:
+                              # auto | none | vaapi | v4l2m2m | cuda | ...
+
+# Applied to every camera unless the camera overrides the key.
+defaults:
+  port: 554
+  username: admin
+  password_env: BUNDLE_CAM_PASSWORD   # read from this environment variable
+  record: motion              # disabled | continuous | motion | review | custom
+  retention_days: 7           # continuous/motion modes
+  detect: true
+  fps: 5
+  objects: [person, car]
+  audio: false                # record audio (AAC) if the camera has a track
+  live_transcode: true        # only applies when the main stream is H.265
+
+cameras:
+  - name: driveway
+    model: rlc-1224a          # key, menu number (1-4), or name ("Reolink RLC-1224A")
+    ip: 192.0.2.11
+
+  - name: backyard
+    model: duo-3-poe
+    ip: 192.0.2.12
+    record: review            # alerts/detections only (forces detect on)
+    alert_days: 14
+    detection_days: 7
+    review_retain_mode: motion  # motion | all
+
+  - name: garage
+    model: rlc-811a
+    ip: 192.0.2.13
+    record: continuous
+    retention_days: 3
+    audio: true
+
+  - name: porch
+    model: sonoff-s2          # tries optional /av_stream/ch1 for detect
+    ip: 192.0.2.14
+    password: EXAMPLE-NOT-A-REAL-PASSWORD   # plaintext alternative to password_env
+    record: custom
+    retention:                # any of: continuous, motion, alerts, detections
+      continuous: 0
+      motion: 5
+      alerts: 10
+      detections: 5
+    objects: [person]
+
+# Optional per-camera keys: port, username / username_env, password /
+# password_env, main_path / sub_path (override the profile's RTSP path;
+# the profile's alternate path is still tried as a fallback).
