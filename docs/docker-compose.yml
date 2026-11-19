@@ -1,4 +1,4 @@
-# Docker Compose file for an Ameridroid Frigate bundle (Frigate 0.17.x).
+# Docker Compose file for an ameriDroid Frigate bundle (Frigate 0.17.x).
 # Based on the official example at https://docs.frigate.video/frigate/installation
 #
 # Put this file in ~/frigate/ next to the "config" and "storage" folders:

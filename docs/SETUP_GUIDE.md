@@ -1,16 +1,16 @@
-# Ameridroid Frigate NVR Bundle: Setup Guide
+# ameriDroid Frigate NVR Bundle: Setup Guide
 
-Welcome! This guide takes you from "box just arrived" to "cameras recording" with your Ameridroid Frigate bundle.
+Welcome! This guide takes you from "box just arrived" to "cameras recording" with your ameriDroid Frigate bundle.
 
 You will:
 
 1. Get the box online and up to date
 2. Install Docker
-3. Download the Ameridroid Frigate files (this repository)
+3. Download the ameriDroid Frigate files (this repository)
 4. Start Frigate
 5. Log in to the Frigate web page
 6. Prepare your cameras
-7. Add your cameras with the Ameridroid camera installer
+7. Add your cameras with the ameriDroid camera installer
 
 > [!NOTE]
 > **Internet is needed during setup only.** Steps 1 to 4 download software. After setup, Frigate and your cameras run entirely on your home network. Nothing has to reach the internet for recording, detection, or viewing at home.
@@ -26,7 +26,7 @@ You will:
 - [Change the default password](#change-the-default-password)
 - [Step 1: Get the box online and up to date](#step-1-get-the-box-online-and-up-to-date)
 - [Step 2: Install Docker](#step-2-install-docker)
-- [Step 3: Download the Ameridroid Frigate files](#step-3-download-the-ameridroid-frigate-files)
+- [Step 3: Download the ameriDroid Frigate files](#step-3-download-the-ameridroid-frigate-files)
 - [Step 4: Start Frigate](#step-4-start-frigate)
 - [Step 5: Log in to Frigate](#step-5-log-in-to-frigate)
 - [Step 6: Prepare your cameras](#step-6-prepare-your-cameras)
@@ -42,7 +42,7 @@ You will:
 
 You need:
 
-- The Ameridroid box, plugged into your router with an Ethernet cable and powered on
+- The ameriDroid box, plugged into your router with an Ethernet cable and powered on
 - A way to type commands on the box. **Ubuntu Server** has no desktop, so use SSH from another computer, or attach a keyboard and monitor. **Ubuntu Desktop:** open a Terminal on the box
 - Your cameras (see [supported cameras](#supported-cameras)) and their power (PoE switch/injector or power adapters)
 - Your phone, for the Reolink and/or eWeLink app
@@ -201,7 +201,7 @@ You should see a header line (`CONTAINER ID   IMAGE ...`) and no "permission den
 
 ---
 
-## Step 3: Download the Ameridroid Frigate files
+## Step 3: Download the ameriDroid Frigate files
 
 This downloads the camera installer, the Frigate settings files, and this guide.
 
@@ -211,7 +211,7 @@ This downloads the camera installer, the Frigate settings files, and this guide.
    sudo apt-get install -y git python3-ruamel.yaml
    ```
 
-2. Download the Ameridroid files to a folder named `frigate-installer` in your home folder:
+2. Download the ameriDroid files to a folder named `frigate-installer` in your home folder:
 
    ```bash
    git clone https://github.com/ameriDroid-tools/Frigatetools.git ~/frigate-installer
@@ -318,7 +318,7 @@ Frigate starts with **no cameras**. That's expected. You'll add them in Step 7.
 > The password only appears in the log of Frigate's very first start. If the command above shows nothing (for example because the container was recreated since), or you forgot the password, see [I'm locked out of the Frigate web page](#im-locked-out-of-the-frigate-web-page).
 
 > [!NOTE]
-> Frigate's web page may offer its own "add camera" wizard. For the cameras in this bundle, use the Ameridroid camera installer in Step 7 instead. It's set up and tested for these exact models.
+> Frigate's web page may offer its own "add camera" wizard. For the cameras in this bundle, use the ameriDroid camera installer in Step 7 instead. It's set up and tested for these exact models.
 
 ---
 
@@ -357,7 +357,7 @@ Do this for each camera **before** running the camera installer. You need each c
 Frigate connects to each camera by its IP address. If your router hands a camera a new address later, Frigate loses it. In your router's settings, find **DHCP reservation** (sometimes called "static lease", "address reservation", or "fixed IP") and reserve an address for:
 
 - each camera, and
-- the Ameridroid box itself.
+- the ameriDroid box itself.
 
 Restart each camera after reserving so it picks up its reserved address. Write down each camera's IP address.
 
@@ -761,11 +761,11 @@ The stream test runs **inside** the Frigate container, the same way Frigate itse
 
 ### "WARNING: no usable ffprobe was found inside the 'frigate' container"
 
-The installer fell back to testing from the box instead of from inside Frigate. That test doesn't prove Frigate can reach the camera. This shouldn't happen with the official Frigate image; check that `docker-compose.yml` still uses the Ameridroid-provided image. If it says no ffprobe is available at all, install it with `sudo apt-get install -y ffmpeg`.
+The installer fell back to testing from the box instead of from inside Frigate. That test doesn't prove Frigate can reach the camera. This shouldn't happen with the official Frigate image; check that `docker-compose.yml` still uses the ameriDroid-provided image. If it says no ffprobe is available at all, install it with `sudo apt-get install -y ffmpeg`.
 
 ### "Installed Frigate version is ...; this script supports Frigate 0.17.x only"
 
-`docker-compose.yml` was changed to a different Frigate version. Set the image back to the 0.17 tag Ameridroid provides, then run `docker compose pull && docker compose up -d`.
+`docker-compose.yml` was changed to a different Frigate version. Set the image back to the 0.17 tag ameriDroid provides, then run `docker compose pull && docker compose up -d`.
 
 ### "Frigate configuration validation failed"
 

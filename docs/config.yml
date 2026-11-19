@@ -1,7 +1,7 @@
-# Frigate 0.17.x starter configuration for Ameridroid Frigate bundles.
+# Frigate 0.17.x starter configuration for ameriDroid Frigate bundles.
 #
 # This file intentionally contains NO cameras. Frigate 0.17 starts fine
-# with an empty camera list; add cameras afterwards with the Ameridroid
+# with an empty camera list; add cameras afterwards with the ameriDroid
 # camera installer (add_camera_v2.py), which edits this file for you.
 #
 # Keep this file named exactly "config.yml" inside the folder that is
