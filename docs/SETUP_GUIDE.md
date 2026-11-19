@@ -43,7 +43,7 @@ You will:
 You need:
 
 - The ameriDroid box, plugged into your router with an Ethernet cable and powered on
-- A way to type commands on the box. **Ubuntu Server** has no desktop, so use SSH from another computer, or attach a keyboard and monitor. **Ubuntu Desktop:** open a Terminal on the box
+- A way to type commands on the box. Ubuntu Server and Debian are both headless: attach a keyboard and monitor, or SSH in from another computer (`ssh frigate@<BOX_IP>`)
 - Your cameras (see [supported cameras](#supported-cameras)) and their power (PoE switch/injector or power adapters)
 - Your phone, for the Reolink and/or eWeLink app
 - Access to your home router's settings page (to reserve IP addresses)
@@ -61,36 +61,37 @@ The camera installer knows these models:
 
 ### How to type the commands in this guide
 
-Every grey box is a command. Copy the whole box, paste it into a terminal, and press **Enter**. When a command starts with `sudo`, Ubuntu may ask for **your login password**. Nothing shows on screen while you type it. That's normal.
+Every grey box is a command. Copy the whole box, paste it at the prompt, and press **Enter**. When a command starts with `sudo`, the box may ask for **your login password**. Nothing shows on screen while you type it. That's normal.
 
-The bundle ships with the latest Ubuntu release, in one of two editions.
-
-- **Ubuntu Server** has no desktop. Set it up over SSH from another computer, or with a keyboard and monitor attached to the box. After you sign in, you are already at a command prompt.
-- **Ubuntu Desktop** has a graphical desktop. Open a Terminal (press the Super key, type `Terminal`, and press Enter).
-
-The commands in this guide are the same on both editions.
-
-The Ubuntu account on the bundle is:
-
-- **Username:** `frigate`
-- **Password:** `Temp_123!`
-
-**Ubuntu Server** has no desktop. From another computer on your home network:
+The bundle ships with the latest Ubuntu Server or Debian. Both are server installs with no desktop. Sign in at the text console with a keyboard and monitor, or from another computer on your home network:
 
 ```bash
 ssh frigate@<BOX_IP>
 ```
 
-Replace `<BOX_IP>` with the box's address (your router's device list, or the first address from `hostname -I` in Step 1 if you are already at a keyboard and monitor). You can also attach a keyboard and monitor and sign in at the text login with the same username and password.
+Replace `<BOX_IP>` with the box's address (your router's device list, or the first address from `hostname -I` in Step 1 if you are already at the console).
 
-**Ubuntu Desktop:** sign in at the graphical login with that username and password, then open a Terminal.
+The account is the same on Ubuntu Server and Debian:
+
+- **Username:** `frigate`
+- **Password:** `Temp_123!`
+
+> [!NOTE]
+> **`sudo`.** On Ubuntu Server, `frigate` is in the `sudo` group, so `sudo` works and asks for the `frigate` password. On Debian, `frigate` is not in the `sudo` group by default, and `sudo` may not even be installed. Check with `groups`. If the output includes `sudo`, continue. If it does not, sign in as root (`su -`) and run:
+>
+> ```bash
+> apt-get update && apt-get install -y sudo
+> usermod -aG sudo frigate
+> ```
+>
+> Log out, sign in again as `frigate`, and the `sudo` commands in this guide will work. The `sudo` group is administrator access. Only `frigate` needs it for this setup.
 
 ---
 
 ## Change the default password
 
 > [!IMPORTANT]
-> **Do this immediately after the first login**, before the other steps. `Temp_123!` is printed in this guide, so it is not a secret. Anyone who can reach the box could sign in with it until you change it.
+> **Do this immediately after the first login**, on Ubuntu Server and on Debian, before the other steps. `Temp_123!` is printed in this guide, so it is not a secret. Anyone who can reach the box could sign in with it until you change it.
 
 ```bash
 passwd
@@ -116,7 +117,7 @@ Type `Temp_123!` when asked for the current password, then type a new password t
    sudo apt-get update && sudo apt-get -y upgrade
    ```
 
-3. Optional but recommended: set your time zone so recordings show the right time. Replace `America/Chicago` with your own zone (list them with `timedatectl list-timezones`):
+3. Optional but recommended: set your time zone so recordings show the right time. This uses systemd, which both Ubuntu Server and Debian have. Replace `America/Chicago` with your own zone (list them with `timedatectl list-timezones`):
 
    ```bash
    sudo timedatectl set-timezone America/Chicago
@@ -129,17 +130,28 @@ Type `Temp_123!` when asked for the current password, then type a new password t
 
 ## Step 2: Install Docker
 
-Frigate runs inside Docker. These steps follow Docker's official apt-repository instructions for [Ubuntu](https://docs.docker.com/engine/install/ubuntu/). They are the same on Ubuntu Server and Ubuntu Desktop.
+Frigate runs inside Docker. These steps follow Docker's official apt-repository instructions for [Ubuntu](https://docs.docker.com/engine/install/ubuntu/) and [Debian](https://docs.docker.com/engine/install/debian/). The package names are the same. The repository address is not.
+
+See which system this box runs. It prints `ubuntu` or `debian`:
+
+```bash
+. /etc/os-release && echo $ID
+```
+
+Use the matching repository in Step 2b. Do not type a version number; the commands read it from the box.
 
 ### 2a. Remove any old or unofficial Docker packages
 
-Safe to run even if none are installed (it may say "no packages found"):
+Safe to run on either system even if none are installed (it may say "no packages found"):
 
 ```bash
 sudo apt-get remove -y $(dpkg --get-selections docker.io docker-compose docker-compose-v2 docker-doc docker-buildx podman-docker containerd runc 2>/dev/null | cut -f1)
 ```
 
-### 2b. Add Docker's Ubuntu repository
+### 2b. Add Docker's repository
+
+<details open>
+<summary><b>Ubuntu Server</b> (<code>ID=ubuntu</code>)</summary>
 
 ```bash
 sudo apt-get update
@@ -160,7 +172,35 @@ EOF
 sudo apt-get update
 ```
 
+</details>
+
+<details open>
+<summary><b>Debian</b> (<code>ID=debian</code>)</summary>
+
+```bash
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+
+sudo tee /etc/apt/sources.list.d/docker.sources <<EOF
+Types: deb
+URIs: https://download.docker.com/linux/debian
+Suites: $(. /etc/os-release && echo "$VERSION_CODENAME")
+Components: stable
+Architectures: $(dpkg --print-architecture)
+Signed-By: /etc/apt/keyrings/docker.asc
+EOF
+
+sudo apt-get update
+```
+
+</details>
+
 ### 2c. Install Docker
+
+Same command on Ubuntu Server and Debian:
 
 ```bash
 sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
@@ -173,7 +213,7 @@ sudo docker run hello-world
 ```
 
 > [!NOTE]
-> **Alternative:** if the repository steps above fail on your system, Docker also offers a one-step convenience script. Docker recommends it mainly for testing, so use it only as a fallback:
+> **Alternative:** if the repository steps above fail, Docker also offers a one-step convenience script. It detects Ubuntu or Debian itself. Docker recommends it mainly for testing, so use it only as a fallback:
 >
 > ```bash
 > curl -fsSL https://get.docker.com -o get-docker.sh
@@ -205,7 +245,7 @@ You should see a header line (`CONTAINER ID   IMAGE ...`) and no "permission den
 
 This downloads the camera installer, the Frigate settings files, and this guide.
 
-1. Install Git and the one extra Python library the installer needs:
+1. Install Git and the one extra Python library the installer needs. These package names are the same on Ubuntu Server and Debian:
 
    ```bash
    sudo apt-get install -y git python3-ruamel.yaml
@@ -729,7 +769,7 @@ docker compose up -d
 
 - Make sure **ONVIF is enabled** on the camera (Step 6).
 - Camera and box must be on the **same network**. Guest Wi-Fi networks and separate VLANs usually block discovery.
-- A firewall on the box can block the replies. Check with `sudo ufw status`. If it says `active`, the simplest fix is to just **type the camera's IP address** when asked; discovery is only a convenience.
+- A firewall on the box can block the replies. If `ufw` is installed, check with `sudo ufw status`. Debian often does not have `ufw`; if the command is not found, skip it. If it says `active`, the simplest fix is to just **type the camera's IP address** when asked; discovery is only a convenience.
 - Wait longer: `--discover-timeout 10`.
 - Box has more than one network port? Add `--discover-interface <BOX_IP>`.
 - You can always skip the search and type the IP. Find it in your router's list of connected devices, or in the Reolink/eWeLink app.
@@ -845,8 +885,8 @@ Log in, set a new password under **Settings > Users**, then remove those two lin
 - **Never expose Frigate to the internet.** Don't set up port forwarding on your router for **8971**, **8554**, **8555** or **5000**. For viewing away from home, use a VPN to your home network instead.
 - **Port 5000 stays off.** It is Frigate's unauthenticated access port and is commented out in `docker-compose.yml` on purpose.
 - **Port 8554 (RTSP restream) has no password by default.** Anyone on your home network can watch camera streams through it. If you don't use other apps that read these streams, you can remove the `"8554:8554"` line from `docker-compose.yml` and run `docker compose up -d`. Frigate itself doesn't need it.
-- **Docker bypasses the `ufw` firewall** for published ports, so Frigate's ports are reachable on your home network even if `ufw` is on. Another reason never to forward them from your router.
-- **Change the default Ubuntu password** (`frigate` / `Temp_123!`) at first login with `passwd`. It is published in this guide. Also change the password on every camera and on Frigate's `admin` user.
+- **Docker bypasses host firewalls** such as `ufw` for published ports, so Frigate's ports are reachable on your home network even when a firewall is on. `ufw` may not be installed on Debian. Another reason never to forward those ports from your router.
+- **Change the default login password** (`frigate` / `Temp_123!`) at first login with `passwd`, on Ubuntu Server and on Debian. It is published in this guide. Also change the password on every camera and on Frigate's `admin` user.
 - Being in the `docker` group is equivalent to admin access on the box. Only add trusted users to it.
 - Manifests with plain-text passwords should be `chmod 600`, or use `password_env` instead.
 - Keep camera firmware up to date.
