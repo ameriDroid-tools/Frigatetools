@@ -76,15 +76,7 @@ The account is the same on Ubuntu Server and Debian:
 - **Username:** `frigate`
 - **Password:** `Temp_123!`
 
-> [!NOTE]
-> **`sudo`.** On Ubuntu Server, `frigate` is in the `sudo` group, so `sudo` works and asks for the `frigate` password. On Debian, `frigate` is not in the `sudo` group by default, and `sudo` may not even be installed. Check with `groups`. If the output includes `sudo`, continue. If it does not, sign in as root (`su -`) and run:
->
-> ```bash
-> apt-get update && apt-get install -y sudo
-> usermod -aG sudo frigate
-> ```
->
-> Log out, sign in again as `frigate`, and the `sudo` commands in this guide will work. The `sudo` group is administrator access. Only `frigate` needs it for this setup.
+> `sudo` commands ask for your `frigate` password. On Ubuntu Server, and on Debian where `sudo` is already set up, that is all you need. On stock Debian, where `sudo` is not set up yet, the one-time fix is in [Step 1](#step-1-get-the-box-online-and-up-to-date).
 
 ---
 
@@ -110,6 +102,48 @@ Type `Temp_123!` when asked for the current password, then type a new password t
    ```
 
    The first address shown (something like `192.168.1.20`) is usually the one you want. Write it down.
+
+   On Ubuntu Server, and on a Debian image where `sudo` is already set up, `sudo` already works. Skip to step 2, or test it:
+
+   ```bash
+   sudo echo "sudo works"
+   ```
+
+   It asks for your `frigate` password. If it prints `sudo works`, continue with step 2.
+
+   <details>
+   <summary><b>Only if <code>sudo</code> says <code>command not found</code> or <code>frigate is not in the sudoers file</code> (stock Debian)</b></summary>
+
+   Do this once, then go back to step 2. The same steps are under [Troubleshooting](#sudo-command-not-found-or-frigate-is-not-in-the-sudoers-file).
+
+   **a.** Switch to `root`:
+
+   ```bash
+   su -
+   ```
+
+   The hyphen is required on Debian. It starts a root login shell so `/usr/sbin` is on `PATH` and admin commands such as `usermod` can be found. `su -` asks for the **root** password, not `frigate`'s password, unless both were set to the same value. If `su -` is not accepted, or root has no password set, `sudo` has to be enabled from a root or recovery console before you continue.
+
+   **b.** Still in that root shell, install `sudo` and allow `frigate` to use it:
+
+   ```bash
+   apt-get update && apt-get install -y sudo
+   usermod -aG sudo frigate
+   ```
+
+   **c.** Leave `root`, then leave the old `frigate` session so the new group applies. Run `exit` once to leave `root`. Run `exit` again to log out of `frigate`. Or, while you are still `root`, run `systemctl reboot`. Then sign back in as `frigate` at the console or with `ssh frigate@<BOX_IP>`.
+
+   **Do not continue Steps 1-7 while logged in as `root`.** `~/frigate` and `$USER` have to belong to `frigate`. Staying `root` puts that folder in `/root/` and adds `root` to the `docker` group later in this guide.
+
+   **d.** After you are signed in as `frigate` again, check:
+
+   ```bash
+   sudo echo "sudo works"
+   ```
+
+   Then continue with step 2.
+
+   </details>
 
 2. Install the latest updates:
 
@@ -728,6 +762,37 @@ On a low-power box, re-encoding a 12MP or 16MP Reolink main stream (RLC-1224A or
 ---
 
 ## Troubleshooting
+
+### "sudo: command not found" or "frigate is not in the sudoers file"
+
+On Ubuntu Server, and on a Debian image where `sudo` is already set up, `sudo` already works and asks for your `frigate` password. You can skip this section. This fix is only for stock Debian, where `sudo` is not set up yet. It is the same one-time fix as in [Step 1](#step-1-get-the-box-online-and-up-to-date). Do it before the other steps that use `sudo`.
+
+**a.** Switch to `root`:
+
+```bash
+su -
+```
+
+The hyphen is required on Debian. It starts a root login shell so `/usr/sbin` is on `PATH` and admin commands such as `usermod` can be found. `su -` asks for the **root** password, not `frigate`'s password, unless both were set to the same value. If `su -` is not accepted, or root has no password set, `sudo` has to be enabled from a root or recovery console before you continue.
+
+**b.** Still in that root shell, install `sudo` and allow `frigate` to use it:
+
+```bash
+apt-get update && apt-get install -y sudo
+usermod -aG sudo frigate
+```
+
+**c.** Leave `root`, then leave the old `frigate` session so the new group applies. Run `exit` once to leave `root`. Run `exit` again to log out of `frigate`. Or, while you are still `root`, run `systemctl reboot`. Then sign back in as `frigate` at the console or with `ssh frigate@<BOX_IP>`.
+
+**Do not continue Steps 1-7 while logged in as `root`.** `~/frigate` and `$USER` have to belong to `frigate`. Staying `root` puts that folder in `/root/` and adds `root` to the `docker` group later in this guide.
+
+**d.** After you are signed in as `frigate` again, check:
+
+```bash
+sudo echo "sudo works"
+```
+
+Then go back to Step 1, step 2 (`sudo apt-get update && sudo apt-get -y upgrade`).
 
 ### "Missing dependency: ruamel.yaml"
 
