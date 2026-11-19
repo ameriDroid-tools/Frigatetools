@@ -43,7 +43,7 @@ You will:
 You need:
 
 - The Ameridroid box, plugged into your router with an Ethernet cable and powered on
-- A keyboard and monitor connected to the box, **or** another computer that can SSH into it
+- A way to type commands on the box. **Ubuntu Server** has no desktop, so use SSH from another computer, or attach a keyboard and monitor. **Ubuntu Desktop:** open a Terminal on the box
 - Your cameras (see [supported cameras](#supported-cameras)) and their power (PoE switch/injector or power adapters)
 - Your phone, for the Reolink and/or eWeLink app
 - Access to your home router's settings page (to reserve IP addresses)
@@ -61,12 +61,17 @@ The camera installer knows these models:
 
 ### How to type the commands in this guide
 
-Every grey box is a command. Open a terminal on the box (or SSH in), copy the whole box, paste it, and press **Enter**. When a command starts with `sudo`, Linux may ask for **your Linux login password**. Nothing shows on screen while you type it. That's normal.
+Every grey box is a command. Copy the whole box, paste it into a terminal, and press **Enter**. When a command starts with `sudo`, Ubuntu may ask for **your login password**. Nothing shows on screen while you type it. That's normal.
 
-Commands in this guide assume the box runs a **Debian or Ubuntu** based Linux, which is what Ameridroid preinstalls.
+The bundle ships with the latest Ubuntu release, in one of two editions.
+
+- **Ubuntu Server** has no desktop. Set it up over SSH from another computer, or with a keyboard and monitor attached to the box. After you sign in, you are already at a command prompt.
+- **Ubuntu Desktop** has a graphical desktop. Open a Terminal (press the Super key, type `Terminal`, and press Enter).
+
+The commands in this guide are the same on both editions.
 
 > [!IMPORTANT]
-> **TODO for Ameridroid:** state the exact Linux distribution and version shipped on this bundle (and the default username/password and how to SSH in, if applicable).
+> **TODO for Ameridroid:** state the default username and password, and how to SSH in.
 
 ---
 
@@ -99,7 +104,7 @@ Commands in this guide assume the box runs a **Debian or Ubuntu** based Linux, w
 
 ## Step 2: Install Docker
 
-Frigate runs inside Docker. These steps follow Docker's official instructions for [Ubuntu](https://docs.docker.com/engine/install/ubuntu/) and [Debian](https://docs.docker.com/engine/install/debian/).
+Frigate runs inside Docker. These steps follow Docker's official apt-repository instructions for [Ubuntu](https://docs.docker.com/engine/install/ubuntu/). They are the same on Ubuntu Server and Ubuntu Desktop.
 
 ### 2a. Remove any old or unofficial Docker packages
 
@@ -109,12 +114,7 @@ Safe to run even if none are installed (it may say "no packages found"):
 sudo apt-get remove -y $(dpkg --get-selections docker.io docker-compose docker-compose-v2 docker-doc docker-buildx podman-docker containerd runc 2>/dev/null | cut -f1)
 ```
 
-### 2b. Add Docker's software repository
-
-Not sure which one you have? Run `grep ^ID= /etc/os-release`. It prints `ID=ubuntu` or `ID=debian`.
-
-<details open>
-<summary><b>Ubuntu</b></summary>
+### 2b. Add Docker's Ubuntu repository
 
 ```bash
 sudo apt-get update
@@ -134,32 +134,6 @@ EOF
 
 sudo apt-get update
 ```
-
-</details>
-
-<details open>
-<summary><b>Debian</b></summary>
-
-```bash
-sudo apt-get update
-sudo apt-get install -y ca-certificates curl
-sudo install -m 0755 -d /etc/apt/keyrings
-sudo curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
-sudo chmod a+r /etc/apt/keyrings/docker.asc
-
-sudo tee /etc/apt/sources.list.d/docker.sources <<EOF
-Types: deb
-URIs: https://download.docker.com/linux/debian
-Suites: $(. /etc/os-release && echo "$VERSION_CODENAME")
-Components: stable
-Architectures: $(dpkg --print-architecture)
-Signed-By: /etc/apt/keyrings/docker.asc
-EOF
-
-sudo apt-get update
-```
-
-</details>
 
 ### 2c. Install Docker
 
