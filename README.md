@@ -18,9 +18,10 @@ Offline, LAN-only camera installer for [Frigate](https://frigate.video/) 0.17.x,
 Follow [docs/SETUP_GUIDE.md](docs/SETUP_GUIDE.md). It covers Docker, cloning this repo to `~/frigate-installer`, copying the starter files, starting Frigate, and adding cameras:
 
 ```bash
-cd ~/frigate
-python3 ~/frigate-installer/add_camera_v2.py --config config/config.yml
+python3 ~/frigate-installer/add_camera_v2.py
 ```
+
+Run that from any directory. Frigate must already be running. The installer finds `config.yml` (or `config.yaml` if that is the only file) from the container's `/config` bind mount. Pass `--config /path/to/config.yml` only when you want to override that.
 
 `bundle_example.yml` is a placeholder batch manifest (documentation IP addresses only). Copy it somewhere private before putting real camera addresses or passwords in it, and do not commit that copy.
 

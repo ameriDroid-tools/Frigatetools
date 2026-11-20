@@ -17,21 +17,25 @@ System dependencies on Ubuntu/Debian:
     (Docker must be installed. Stream probing uses the ffprobe that ships
     inside the Frigate image; host ffprobe is only a fallback.)
 
-Run (interactive wizard, one camera):
+Run from any directory (interactive wizard, one camera). The Frigate
+configuration is read from the running container's bind mount, so
+--config and the working directory are not required:
     python3 add_camera_v2.py
-    python3 add_camera_v2.py --config config.yml --container frigate
+    python3 add_camera_v2.py --config /path/to/config.yml --container frigate
 
 List ONVIF devices on the LAN and exit:
     python3 add_camera_v2.py --discover
 
 Batch (add a whole bundle from a manifest; one validation, one backup,
 one write, optional single restart):
-    python3 add_camera_v2.py --batch bundle.yml --config config.yml
-    python3 add_camera_v2.py --batch bundle.yml --yes --restart
+    python3 add_camera_v2.py --batch /path/to/bundle.yml
+    python3 add_camera_v2.py --batch /path/to/bundle.yml --yes --restart
 
-The existing configuration directory must be bind-mounted into the
-running Frigate container. Single-file configuration mounts are rejected
+The configuration directory must be bind-mounted into the running
+Frigate container. Single-file configuration mounts are rejected
 because atomic file replacement can leave those mounts reading old data.
+Pass --config only to override that auto-detected file. A relative
+--config path is resolved from the working directory.
 
 Camera credentials are stored in the configuration's go2rtc URLs. They
 are never printed by this script.
@@ -303,7 +307,14 @@ def path_order(candidates, chosen=None):
 # Docker / container
 # ---------------------------------------------------------------------------
 
-def inspect_container(container, config_path):
+SINGLE_FILE_MOUNT_ERROR = (
+    "The configuration is mounted as a single file. "
+    "Mount its directory instead before using this wizard's "
+    "atomic configuration replacement."
+)
+
+
+def read_container_info(container):
     try:
         result = subprocess.run(
             ["docker", "inspect", "--type", "container", container],
@@ -331,6 +342,34 @@ def inspect_container(container, config_path):
             "for stream probing and configuration validation."
         )
 
+    return info
+
+
+def _mount_rows(info):
+    rows = []
+
+    for mount in info.get("Mounts") or []:
+        source = mount.get("Source")
+        destination = mount.get("Destination")
+
+        if not source or not destination:
+            continue
+
+        dest = Path(destination).as_posix()
+
+        if dest != "/" and dest.endswith("/"):
+            dest = dest.rstrip("/")
+
+        rows.append({
+            "type": mount.get("Type"),
+            "source": Path(source).resolve(),
+            "dest": dest,
+        })
+
+    return rows
+
+
+def container_destination(info, config_path):
     matches = []
 
     for mount in info.get("Mounts") or []:
@@ -343,11 +382,7 @@ def inspect_container(container, config_path):
         source = Path(mount["Source"]).resolve()
 
         if source == config_path:
-            raise RuntimeError(
-                "The configuration is mounted as a single file. "
-                "Mount its directory instead before using this wizard's "
-                "atomic configuration replacement."
-            )
+            raise RuntimeError(SINGLE_FILE_MOUNT_ERROR)
 
         if not source.is_dir():
             continue
@@ -373,6 +408,204 @@ def inspect_container(container, config_path):
 
     matches.sort(reverse=True)
     return matches[0][1]
+
+
+def inspect_container(container, config_path):
+    return container_destination(read_container_info(container), config_path)
+
+
+def running_containers():
+    """Running (name, image) pairs. Empty when docker ps cannot be read."""
+    if not shutil.which("docker"):
+        return []
+
+    try:
+        result = subprocess.run(
+            ["docker", "ps", "--format", "{{.Names}}\t{{.Image}}"],
+            capture_output=True,
+            text=True,
+            timeout=20,
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        return []
+
+    if result.returncode != 0:
+        return []
+
+    found = []
+
+    for line in result.stdout.splitlines():
+        if not line.strip():
+            continue
+
+        name, separator, image = line.partition("\t")
+        found.append((name.strip(), image.strip() if separator else ""))
+
+    return found
+
+
+def default_container_name():
+    """
+    Prefer a running container named frigate. Otherwise the only running
+    container whose name or image contains 'frigate'. Otherwise 'frigate'.
+    """
+    rows = running_containers()
+
+    for name, _image in rows:
+        if name == "frigate":
+            return "frigate"
+
+    matches = [
+        name
+        for name, image in rows
+        if "frigate" in name.lower() or "frigate" in image.lower()
+    ]
+
+    if len(matches) == 1:
+        return matches[0]
+
+    return "frigate"
+
+
+def _config_file_env(info):
+    for item in (info.get("Config") or {}).get("Env") or []:
+        if isinstance(item, str) and item.startswith("CONFIG_FILE="):
+            value = item.split("=", 1)[1].strip()
+
+            if value:
+                return value
+
+    return None
+
+
+def _map_container_file(info, container_path):
+    """Map a container file path to a host path through a bind mount."""
+    target = container_path.strip()
+
+    if not target.startswith("/"):
+        target = "/" + target.lstrip("/")
+
+    target_path = Path(target)
+    matches = []
+    blocked = None
+
+    for mount in _mount_rows(info):
+        try:
+            relative = target_path.relative_to(mount["dest"])
+        except ValueError:
+            continue
+
+        if mount["type"] != "bind":
+            blocked = mount
+            continue
+
+        if not mount["source"].is_dir():
+            if relative == Path("."):
+                raise RuntimeError(SINGLE_FILE_MOUNT_ERROR)
+
+            continue
+
+        host = (mount["source"] / relative).resolve()
+        matches.append((len(Path(mount["dest"]).parts), host))
+
+    if matches:
+        matches.sort(reverse=True)
+        return matches[0][1]
+
+    if blocked is not None:
+        kind = blocked["type"] or "non-bind"
+        raise RuntimeError(
+            f"Container path {target} is on a {kind} volume "
+            f"({blocked['dest']}), not a bind mount. "
+            "Bind-mount the configuration directory, or pass --config."
+        )
+
+    raise RuntimeError(
+        f"Cannot map container path {target} through a bind mount. "
+        "Pass --config, and run this wizard on the Docker host."
+    )
+
+
+def detect_host_config(info):
+    """
+    Host path of the configuration file for a running container.
+
+    CONFIG_FILE, when set, wins. Otherwise the /config bind mount is
+    searched for config.yml, then config.yaml.
+    """
+    configured = _config_file_env(info)
+
+    if configured:
+        host = _map_container_file(info, configured)
+
+        if not host.is_file():
+            raise RuntimeError(
+                f"CONFIG_FILE is {configured}, which maps to {host}, "
+                "but that file does not exist. "
+                "Create it, or pass --config."
+            )
+
+        return host
+
+    directory = None
+    file_mount = False
+
+    for mount in _mount_rows(info):
+        if mount["dest"] == "/config":
+            directory = mount
+        elif mount["dest"] in ("/config/config.yml", "/config/config.yaml"):
+            file_mount = True
+
+    if directory is None:
+        if file_mount:
+            raise RuntimeError(SINGLE_FILE_MOUNT_ERROR)
+
+        raise RuntimeError(
+            "This container has no /config mount. "
+            "Bind-mount the configuration directory "
+            "(for example ./config:/config), or pass --config."
+        )
+
+    if directory["type"] != "bind":
+        kind = directory["type"] or "non-bind"
+        raise RuntimeError(
+            f"The container's /config path is a {kind} volume, "
+            "not a bind mount. "
+            "Bind-mount the configuration directory, or pass --config."
+        )
+
+    source = directory["source"]
+
+    if not source.is_dir():
+        raise RuntimeError(SINGLE_FILE_MOUNT_ERROR)
+
+    yml = source / "config.yml"
+    yaml_path = source / "config.yaml"
+
+    if yml.is_file() and yaml_path.is_file():
+        print(
+            f"\nWarning: both config.yml and config.yaml are in {source}. "
+            "Using config.yml. config.yaml is also present and will "
+            "not be edited."
+        )
+        return yml.resolve()
+
+    if yml.is_file():
+        return yml.resolve()
+
+    if yaml_path.is_file():
+        return yaml_path.resolve()
+
+    raise RuntimeError(
+        "No config.yml or config.yaml in the bind-mounted directory "
+        f"{source}. Create or copy config.yml there, or pass --config."
+    )
+
+
+def resolve_mounted_config(container):
+    info = read_container_info(container)
+    host_path = detect_host_config(info)
+    return host_path, container_destination(info, host_path)
 
 
 # ---------------------------------------------------------------------------
@@ -1614,20 +1847,29 @@ def interactive(args):
     if not shutil.which("docker"):
         raise RuntimeError("Required executable missing: docker")
 
-    config_path, original, original_stat, yaml, config = load_config(
-        args.config
-    )
-
-    cameras = mapping(config, "cameras")
-    go2rtc = mapping(config, "go2rtc")
-    streams = mapping(go2rtc, "streams")
+    # An explicit --config is resolved from the working directory before
+    # the container is chosen, and must already exist.
+    loaded = load_config(args.config) if args.config else None
 
     print("==========================================")
     print(f" Frigate {TARGET_MINOR}.x Camera Installer")
     print("==========================================")
 
-    container = args.container or ask("Frigate container name", "frigate")
-    container_path = inspect_container(container, config_path)
+    container = args.container or ask(
+        "Frigate container name", default_container_name()
+    )
+
+    if loaded is None:
+        host_path, container_path = resolve_mounted_config(container)
+        loaded = load_config(host_path)
+    else:
+        container_path = inspect_container(container, loaded[0])
+
+    config_path, original, original_stat, yaml, config = loaded
+
+    cameras = mapping(config, "cameras")
+    go2rtc = mapping(config, "go2rtc")
+    streams = mapping(go2rtc, "streams")
 
     print(f"\nHost configuration:      {config_path}")
     print(f"Container configuration: {container_path}")
@@ -2184,32 +2426,53 @@ def batch(args):
     )
     validate_hw(hw)
 
-    config_path, original, original_stat, yaml, config = load_config(
-        args.config
-    )
+    def resolve_container():
+        if args.container:
+            return str(args.container)
 
-    cameras = mapping(config, "cameras")
-    go2rtc = mapping(config, "go2rtc")
-    streams = mapping(go2rtc, "streams")
+        if data.get("container"):
+            return str(data.get("container"))
 
-    # Validate the whole manifest (names, collisions, credentials) before
-    # touching the network, so typos fail fast.
-    entries = []
-    pending = set()
+        return default_container_name()
 
-    for index, raw in enumerate(data["cameras"]):
-        entry = parse_manifest_entry(raw, defaults, index, hw)
-        check_name_free(entry["name"], cameras, streams, pending)
-        pending.update(reserved_streams(entry["name"]))
-        entries.append(entry)
+    def manifest_entries(cameras, streams):
+        # Validate the whole manifest (names, collisions, credentials)
+        # before touching the network, so typos fail fast.
+        entries = []
+        pending = set()
 
-    container = str(args.container or data.get("container") or "frigate")
+        for index, raw in enumerate(data["cameras"]):
+            entry = parse_manifest_entry(raw, defaults, index, hw)
+            check_name_free(entry["name"], cameras, streams, pending)
+            pending.update(reserved_streams(entry["name"]))
+            entries.append(entry)
+
+        return entries
+
+    if args.config:
+        # Explicit path: resolve from the working directory before Docker
+        # is contacted, then prove the file is inside a bind mount.
+        loaded = load_config(args.config)
+        config_path, original, original_stat, yaml, config = loaded
+        cameras = mapping(config, "cameras")
+        go2rtc = mapping(config, "go2rtc")
+        streams = mapping(go2rtc, "streams")
+        entries = manifest_entries(cameras, streams)
+        container = resolve_container()
+        container_path = inspect_container(container, config_path)
+    else:
+        container = resolve_container()
+        host_path, container_path = resolve_mounted_config(container)
+        loaded = load_config(host_path)
+        config_path, original, original_stat, yaml, config = loaded
+        cameras = mapping(config, "cameras")
+        go2rtc = mapping(config, "go2rtc")
+        streams = mapping(go2rtc, "streams")
+        entries = manifest_entries(cameras, streams)
 
     print("==========================================")
     print(f" Frigate {TARGET_MINOR}.x Camera Installer (batch)")
     print("==========================================")
-
-    container_path = inspect_container(container, config_path)
     prober = Prober(container)
     prober.setup()
 
@@ -2292,13 +2555,19 @@ def main():
     )
     parser.add_argument(
         "--config",
-        default="config.yml",
-        help="Existing Frigate configuration; default: config.yml",
+        default=None,
+        help="Host path of the Frigate configuration. Omit to use the "
+             "running container's CONFIG_FILE or the config.yml "
+             "(then config.yaml) in its /config bind mount. "
+             "A relative path is resolved from the working directory.",
     )
     parser.add_argument(
         "--container",
-        help="Running Frigate container name; prompted if omitted "
-             "(batch: manifest 'container', else 'frigate').",
+        help="Running Frigate container name. Interactive mode asks if "
+             "omitted. The suggested name is a running container named "
+             "frigate, or the only other running container whose name "
+             "or image contains frigate. Batch mode uses the manifest "
+             "'container' field, otherwise the same detection.",
     )
     parser.add_argument(
         "--discover",

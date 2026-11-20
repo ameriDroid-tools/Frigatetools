@@ -313,7 +313,7 @@ You now have:
 ```
 
 > [!WARNING]
-> Keep the file named exactly **`config.yml`** inside `~/frigate/config/`. If Frigate can't find `config.yml`, it creates a *different* file named `config.yaml`, and the camera installer would then be editing the wrong file.
+> Keep the file named exactly **`config.yml`** inside `~/frigate/config/`. Frigate looks for `config.yml` first and, only if that file is missing, creates `config.yaml`. The camera installer follows the same order. If both files are in the folder, it edits `config.yml` and tells you that `config.yaml` was left alone.
 
 > [!NOTE]
 > **Hardware varies by bundle.** Detector, video-decoding acceleration, device passthrough, shared memory, and where recordings are stored are already set on a shipped bundle, and they differ between offerings. The starter files here leave those lines commented, with examples, for anyone setting them from the [Frigate docs](https://docs.frigate.video/). Pick the Frigate image in Step 4. `shm_size` stays `512mb` unless more cameras need more shared memory ([Calculating required shm-size](https://docs.frigate.video/frigate/installation/#calculating-required-shm-size)).
@@ -452,19 +452,20 @@ The installer walks you through one camera at a time. It:
 
 ### Start the installer
 
+Frigate must be running (Step 4). You do not have to `cd` anywhere, and you do not have to pass `--config`. The installer asks which container to use, then reads the configuration from that container's bind mount:
+
 ```bash
-cd ~/frigate
-python3 ~/frigate-installer/add_camera_v2.py --config config/config.yml
+python3 ~/frigate-installer/add_camera_v2.py
 ```
 
-Frigate must be running (Step 4) when you do this.
+`--config /some/path/config.yml` is optional. Use it only to point at a different host file. A relative `--config` path is taken from the directory you are in when you run the command.
 
 ### What it asks, and what to answer
 
 | Question | What to do |
 | --- | --- |
-| `Frigate container name [frigate]` | Press **Enter**. |
-| `Is this the configuration file Frigate actually uses?` | It shows the file on the box and inside Frigate. If they are `~/frigate/config/config.yml` and `/config/config.yml`, type **y**. |
+| `Frigate container name [frigate]` | Press **Enter** when the suggestion is `frigate`. The suggestion is a running container named `frigate`, or, if that name is not running, the only other running container whose name or image contains `frigate`. |
+| `Is this the configuration file Frigate actually uses?` | It prints the host path, the path inside the container, and the container name. For this bundle those are `~/frigate/config/config.yml` and `/config/config.yml` in container `frigate`. If they match, type **y**. |
 | `Select camera model` | Type the number for your camera (1 to 4). |
 | `Camera name, e.g. driveway` | A short name using **lowercase letters, numbers and underscores**, starting with a letter. Examples: `driveway`, `back_yard`, `garage2`. |
 | `Search the LAN for ONVIF cameras...?` | Press **Enter** (yes). Pick your camera's number from the list, or type its IP address. |
@@ -499,7 +500,7 @@ If you chose alerts or detections, it also asks whether to keep only the motion 
 Here is what adding a Reolink RLC-1224A looks like. Your addresses and numbers will differ.
 
 ```text
-$ python3 ~/frigate-installer/add_camera_v2.py --config config/config.yml
+$ python3 ~/frigate-installer/add_camera_v2.py
 ==========================================
  Frigate 0.17.x Camera Installer
 ==========================================
@@ -698,16 +699,17 @@ read -rsp "Sonoff RTSP password: " SONOFF_PASSWORD && export SONOFF_PASSWORD && 
 Run the batch:
 
 ```bash
-cd ~/frigate
-python3 ~/frigate-installer/add_camera_v2.py --batch my_cameras.yml --config config/config.yml
+python3 ~/frigate-installer/add_camera_v2.py --batch ~/frigate/my_cameras.yml
 ```
+
+The manifest path is wherever you saved the file. The Frigate configuration is still found from the running container, from any working directory. Add `--config /some/path/config.yml` only to override that.
 
 It tests every camera, validates everything with Frigate, shows a summary, and then asks before writing and before restarting.
 
 **Unattended** (no questions; saves and restarts automatically):
 
 ```bash
-python3 ~/frigate-installer/add_camera_v2.py --batch my_cameras.yml --config config/config.yml --yes --restart
+python3 ~/frigate-installer/add_camera_v2.py --batch ~/frigate/my_cameras.yml --yes --restart
 ```
 
 > [!WARNING]
@@ -723,8 +725,8 @@ python3 add_camera_v2.py [options]
 
 | Option | What it does |
 | --- | --- |
-| `--config FILE` | Frigate settings file to edit. Default: `config.yml` in the current folder. In this guide: `config/config.yml` from `~/frigate`. |
-| `--container NAME` | Frigate container name. Interactive mode asks if omitted; batch mode uses the manifest's `container`, otherwise `frigate`. |
+| `--config FILE` | Optional host path of the Frigate settings file. When omitted, the installer uses the running container's `CONFIG_FILE` or, if that is unset, `config.yml` then `config.yaml` in the `/config` bind mount. A relative path is resolved from the directory you are in. |
+| `--container NAME` | Frigate container name. Interactive mode asks if omitted. The suggested name is a running container named `frigate`, or the only other running container whose name or image contains `frigate`. Batch mode uses the manifest's `container`, otherwise the same detection. |
 | `--discover` | Just list ONVIF cameras found on the network, then exit. Changes nothing. |
 | `--discover-timeout SECONDS` | How long to wait for cameras to answer (0.5 to 30; default 3). |
 | `--discover-interface HOST_IP` | The box's own IPv4 address to search from, for boxes with more than one network port. |
@@ -817,18 +819,34 @@ If it keeps stopping, read the end of the log for the reason: `docker logs --tai
 
 ### "The selected configuration is not inside a bind-mounted directory..." or "...mounted as a single file"
 
-The installer was pointed at a different file from the one Frigate uses, or `docker-compose.yml` was changed. Run the installer from `~/frigate` with `--config config/config.yml`, and make sure `docker-compose.yml` still has `- ./config:/config`. If you change `docker-compose.yml`, apply it with `docker compose up -d`.
+The settings **directory** has to be bind-mounted into Frigate (`./config:/config` in `docker-compose.yml`). A single-file mount such as `./config.yml:/config/config.yml`, or a Docker volume that is not a bind mount, is refused because replacing the file would not update what the container reads. With no `--config`, the installer finds that directory from the running container. If you do pass `--config`, that host file still has to sit inside a bind-mounted directory. Fix `docker-compose.yml` so it has `- ./config:/config`, then apply it with `cd ~/frigate && docker compose up -d`.
 
-### "Existing configuration not found"
+### "Existing configuration not found" or "No config.yml or config.yaml in the bind-mounted directory"
 
-Check the file is there: `ls -l ~/frigate/config/`. If you only see `config.yaml` (with an "a"), Frigate created that because `config.yml` was missing. Stop Frigate, put the starter file back, and start again:
+With no `--config`, the installer looks in the folder mounted at `/config` (or at the container's `CONFIG_FILE`). Check that folder:
 
 ```bash
-cd ~/frigate && docker compose down
-cp ~/frigate-installer/docs/config.yml ~/frigate/config/config.yml && chmod 600 ~/frigate/config/config.yml
-rm ~/frigate/config/config.yaml
-docker compose up -d
+ls -l ~/frigate/config/
 ```
+
+- If it is empty, copy the starter file in and start Frigate again:
+
+  ```bash
+  cp ~/frigate-installer/docs/config.yml ~/frigate/config/config.yml
+  chmod 600 ~/frigate/config/config.yml
+  cd ~/frigate && docker compose up -d
+  ```
+
+- If you only see `config.yaml` (with an "a"), Frigate created that because `config.yml` was missing. The installer will edit `config.yaml` in that case. Prefer one file named `config.yml`: stop Frigate, put the starter file back, remove the extra file, and start again:
+
+  ```bash
+  cd ~/frigate && docker compose down
+  cp ~/frigate-installer/docs/config.yml ~/frigate/config/config.yml && chmod 600 ~/frigate/config/config.yml
+  rm ~/frigate/config/config.yaml
+  docker compose up -d
+  ```
+
+- If you passed `--config`, that path was not a file. Pass the real host path, or omit `--config` and let the installer use the container mount. A relative `--config` is looked up in the directory you ran the command from, not in `~/frigate`.
 
 ### Discovery finds nothing ("No ONVIF devices answered")
 
