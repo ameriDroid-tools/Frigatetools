@@ -2,7 +2,7 @@
 
 Offline, LAN-only camera installer for [Frigate](https://frigate.video/) 0.17.x, for ameriDroid's turnkey NVR bundles. Those bundles ship with the latest Ubuntu Server or Debian. Hardware differs by bundle (the setup guide covers the `frigate` login, which Frigate 0.17.2 image to run, and live view). The installer probes camera RTSP streams on the local network (and can look for ONVIF devices on the LAN), then adds them to an existing Frigate `config.yml`. After Frigate itself is installed, the installer does not need internet access.
 
-**Not validated on real hardware yet.** Treat the camera profiles and the setup guide's camera-menu notes as unconfirmed until they are tried on the cameras that ship in a bundle.
+
 
 ## Supported cameras
 
