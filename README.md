@@ -15,7 +15,7 @@ Offline, LAN-only camera installer for [Frigate](https://frigate.video/) 0.17.x,
 
 ## Quick start
 
-Follow [docs/SETUP_GUIDE.md](docs/SETUP_GUIDE.md). It covers Docker, cloning this repo to `~/frigate-installer`, copying the starter files, starting Frigate, and adding cameras:
+Follow [docs/SETUP_GUIDE.md](docs/SETUP_GUIDE.md) for customer setup. Staff who prepare a bundle before it ships use [docs/BUNDLE_SETUP.md](docs/BUNDLE_SETUP.md). The customer guide covers Docker, cloning this repo to `~/frigate-installer`, copying the starter files, starting Frigate, and adding cameras:
 
 ```bash
 python3 ~/frigate-installer/add_camera_v2.py
@@ -31,6 +31,7 @@ Run that from any directory. Frigate must already be running. The installer find
 add_camera_v2.py          camera installer (interactive or --batch)
 bundle_example.yml        example batch manifest; placeholders only
 docs/SETUP_GUIDE.md       customer setup guide
+docs/BUNDLE_SETUP.md      internal checklist for preparing a bundle before it ships
 docs/docker-compose.yml   starter Compose file (copy to ~/frigate/)
 docs/config.yml           starter Frigate 0.17 config with no cameras
 ```

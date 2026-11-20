@@ -1,6 +1,6 @@
 # ameriDroid Frigate NVR Bundle: Setup Guide
 
-Welcome! This guide takes you from "box just arrived" to "cameras recording" with your ameriDroid Frigate bundle.
+Welcome! This guide takes you from "box just arrived" to "cameras recording" with your ameriDroid Frigate bundle. Staff who prepare a bundle before it ships use [BUNDLE_SETUP.md](BUNDLE_SETUP.md); this page is the customer guide.
 
 You will:
 
